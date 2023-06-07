@@ -1,6 +1,7 @@
 require('dotenv').config();
 import { DataSource } from "typeorm"
 import express from "express";
+import { Contact } from "./entities/Contact"
 
 const app = express();
 
@@ -18,6 +19,9 @@ export const AppDataSource = new DataSource({
     username: DB_USERNAME,
     password: DB_PASSWORD,
     database: DB_DATABASE,
+    entities: [
+        Contact
+    ],
     synchronize: true
 })
 
