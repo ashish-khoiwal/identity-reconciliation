@@ -2,6 +2,7 @@ require('dotenv').config();
 import { DataSource } from "typeorm"
 import express from "express";
 import { Contact } from "./entities/Contact"
+import { identifyContactRouter } from "./api/identify_contact";
 
 const app = express();
 
@@ -28,6 +29,8 @@ export const AppDataSource = new DataSource({
 AppDataSource.initialize()
     .then(() => {
         app.use(express.json()) // for parsing the req body
+
+        app.use(identifyContactRouter) // our main route which exposes the /identify
 
         app.listen(PORT, () => {
             console.log("listning on port:", PORT);
