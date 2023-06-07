@@ -6,6 +6,12 @@ type IdentifyContactServiceType = {
     phoneNumber?: number
 }
 
+/**
+ * 
+ * @param email optional string 
+ * @param phoneNumber optional number 
+ * @returns creates a new contact with link precedence of primary
+ */
 const createNewContact = async ({ email, phoneNumber }: IdentifyContactServiceType) => {
     const contactRepo = AppDataSource.getRepository(Contact)
     const newContact = contactRepo.create({
@@ -25,6 +31,10 @@ const createNewContact = async ({ email, phoneNumber }: IdentifyContactServiceTy
     }
 }
 
+/**
+ * 
+ * @param primaryContact Contact
+ */
 const fetchLinkedContacts = async (primaryContact: Contact) => {
     const contactRepo = AppDataSource.getRepository(Contact)
     const secondaryContacts = await contactRepo.find({
@@ -52,12 +62,20 @@ const fetchLinkedContacts = async (primaryContact: Contact) => {
     }
 }
 
+/**
+ * @param email string optional
+ * @param phoneNumber string optional
+ * @returns all the related contacts with primary contact being the first
+ * 
+ * this service check creates the contact if any new info is present and then fetch all the related contacts
+ */
 export const identifyContactService = async (data: IdentifyContactServiceType) => {
     try {
         const { email, phoneNumber } = data
         const contactRepo = AppDataSource.getRepository(Contact)
 
         // first finding if there already exists any contacts with similar info
+        // here we're only considering if either email or phoneNumber is null
         let existingContacts: Contact[] | null
         if (phoneNumber && !email) {
             existingContacts = await contactRepo.find({
@@ -74,10 +92,12 @@ export const identifyContactService = async (data: IdentifyContactServiceType) =
         if (existingContacts && existingContacts.length == 0) {
             return createNewContact({ email, phoneNumber })
         }
+        // if there exists any contacts related to this one then fetch them all
         else if (existingContacts && existingContacts.length > 0) {
             return fetchLinkedContacts(existingContacts[0].linkedContact ?? existingContacts[0])
         }
 
+        // now we're considering if we have both the email and phoneNumber are coming. here there are only 3 cases:
         if (email && phoneNumber) {
             const existingContactsWithEmail = await contactRepo.find({
                 where: { email },
@@ -88,9 +108,13 @@ export const identifyContactService = async (data: IdentifyContactServiceType) =
                 relations: ["linkedContact"]
             })
 
+            // a new contact with both fields unrelated to present contacts
             if (existingContactsWithEmail.length === 0 && existingContactsWithPhone.length === 0) {
                 return await createNewContact({ email, phoneNumber })
-            } else if ((existingContactsWithEmail.length === 0 && existingContactsWithPhone.length > 0) || (existingContactsWithEmail.length > 0 && existingContactsWithPhone.length === 0)) {
+            } 
+            
+            // this means either one field is new while the other one is already present, hence create a secondary account
+            else if ((existingContactsWithEmail.length === 0 && existingContactsWithPhone.length > 0) || (existingContactsWithEmail.length > 0 && existingContactsWithPhone.length === 0)) {
 
                 const newSecondaryContact = contactRepo.create({
                     email: email,
@@ -101,13 +125,18 @@ export const identifyContactService = async (data: IdentifyContactServiceType) =
 
                 await newSecondaryContact.save()
                 return fetchLinkedContacts(newSecondaryContact.linkedContact)
-            } else if (existingContactsWithEmail.length > 0 && existingContactsWithPhone.length > 0) {
+            } 
+            
+            // if primary contact for email != primary contact of phoneNumber, then update the newer one and all its corresponding ones, 
+            // otherwise just fetch all the related contacts (as done in first if clause down below) 
+            else if (existingContactsWithEmail.length > 0 && existingContactsWithPhone.length > 0) {
                 const primaryContactForEmail = existingContactsWithEmail[0].linkedContact == null ? existingContactsWithEmail[0] : existingContactsWithEmail[0].linkedContact
                 const primaryContactForPhone = existingContactsWithPhone[0].linkedContact == null ? existingContactsWithPhone[0] : existingContactsWithPhone[0].linkedContact
 
                 if (primaryContactForEmail && primaryContactForPhone && primaryContactForEmail.id === primaryContactForPhone.id) {
                     return fetchLinkedContacts(primaryContactForEmail)
-                } else {
+                } 
+                else {
                     const olderPrimaryContact = primaryContactForEmail.createdAt > primaryContactForPhone.createdAt ? primaryContactForPhone : primaryContactForEmail;
                     const newPrimaryContact = primaryContactForEmail.createdAt > primaryContactForPhone.createdAt ? primaryContactForEmail : primaryContactForPhone;
 
